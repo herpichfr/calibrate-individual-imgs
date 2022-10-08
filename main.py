@@ -10,6 +10,7 @@ import pandas as pd
 import multiprocessing
 import time
 import os
+import matplotlib.pyplot as plt
 
 def calibrate_indimgs(tab, imgs):
     """calibrate individual frames used for SPLUS MS coadding"""
@@ -47,7 +48,7 @@ def calibrate_indimgs(tab, imgs):
         mask = (mstab[filtername.item()] > 14) & (mstab[filtername.item()] < 18)
         a = mstab[filtername.item()][sep_constraint & mask] - tab[1].data['mag'][image_mask][idx][sep_constraint & mask]
         zp = np.median(a)
-        percs = np.percentile(a, [16, 84])
+        percs = np.percentile(a, [16, 84, 0.05, 99.95])
         num_obj = a.size
         print('ZP for image', img, 'filter', filtername.item(), 'field', tile, 'is', zp)
 
@@ -59,7 +60,52 @@ def calibrate_indimgs(tab, imgs):
         newt.to_pandas().to_csv(imgtabname, index=False)
 
         # save diagnostic things
+        print('saving table with the params')
         save_tabs4imgs(img, tile, zp, percs, num_obj)
+
+        print('saving diagnostic figure', img + '_diag.png')
+        #plot_diagnostics(img, a, zp, percs, num_obj, c1, c2,
+        #                 mstab[filtername.item()][sep_constraint & mask], sample=sep_constraint & mask)
+        fig = plt.figure()
+        ax1 = fig.add_subplot(221)
+        ax1.scatter(c1.ra, c1.dec, marker='o', c='c', s=20, label='ind')
+        ax1.scatter(c2.ra, c2.dec, marker='.', c='k', s=5, label='MS', alpha=0.5)
+        ax1.set_xlabel('RA')
+        ax1.set_ylabel('Dec')
+        ax1.set_title(img + ' f: ' + filtername.item(), fontsize=10)
+        ax1.legend(loc='upper left', fontsize=8)
+
+        ax2 = fig.add_subplot(222)
+        ax2.scatter(c1.ra[idx][sep_constraint & mask], c1.dec[idx][sep_constraint & mask],
+                    marker='o', c='c', s=20, label='ind')
+        ax2.scatter(c2.ra[sep_constraint & mask], c2.dec[sep_constraint & mask],
+                    marker='.', c='k', s=5, label='MS', alpha=0.5)
+        ax2.set_xlabel('RA')
+        ax2.set_title('N = %i' % int(num_obj), fontsize=10)
+        ax2.legend(loc='upper left', fontsize=8)
+
+        ax3 = fig.add_subplot(223)
+        y, x, _ = ax3.hist(a, bins=100, color='r', range=(percs[2], percs[3]))
+        ax3.set_xlabel('mag_auto_MS - mag_auto_ind')
+        ax3.plot([zp, zp], [-0.01, max(y) + 1], '--', c='k', lw=1., label='median: %.2f' % zp)
+        ax3.plot([percs[0], percs[0]], [-0.01, max(y) + 1], '-.', c='k', lw=1.5, label='p16: %.2f' % percs[0])
+        ax3.plot([percs[1], percs[1]], [-0.01, max(y) + 1], '-.', c='k', lw=1.5, label='p84: %.2f' % percs[1])
+        ax3.legend(loc='upper left', fontsize=8)
+
+        ax4 = fig.add_subplot(224)
+        ax4.scatter(mstab[filtername.item()][sep_constraint & mask], a, marker='.', c='b')
+        ax4.plot([min(mstab[filtername.item()][sep_constraint & mask]),
+                  max(mstab[filtername.item()][sep_constraint & mask])],
+                 [zp, zp], '-', c='k', lw=1.5)
+        ax4.set_xlabel('mag_auto_MS')
+        ax4.set_ylabel('MS - ind')
+
+        plt.tight_layout()
+
+        dir2save = '/home/herpich/Documents/pos-doc/t80s/asteroids/indImgsDiag/'
+        imgdiagname = dir2save + img + '_diag.png'
+        plt.savefig(imgdiagname, format='png', dpi=120)
+        plt.close()
 
     return
 
@@ -113,9 +159,6 @@ if __name__ == '__main__':
             time.sleep(1)
         else:
             print('All jobs finished')
-            finaltabname = '/storage/Documents/pos-doc/t80s/asteroids/allsplusdetections-0-1080-calib.fits'
-            print('saving table', finaltabname)
-            tab.writeto(finaltabname, overwrite=True)
             proc_alive = False
 
     print('Done!')
