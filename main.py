@@ -132,15 +132,15 @@ if __name__ == '__main__':
         os.mkdir(dir2save)
 
     # read table with the photometry of individual images
-    list_table = glob.glob('/storage/splus/Catalogues/asteroids/allsplusdetections-*.csv')
-    f = open('/storage/splus/Catalogues/asteroids/filed_tabs.txt', 'w')
+    list_table = glob.glob('/storage/splus/Catalogues/asteroids/allsplusdetections-*.csv.fits')
+    failtab = open('/storage/splus/Catalogues/asteroids/filed_tabs.txt', 'w')
     for tabname in list_table:
         print('reading table', tabname)
         tab = fits.open(tabname)
 
         # check number of images in table
         if np.unique(tab[1].data['exposure_id']).size != 1080:
-            f.write(tabname)
+            failtab.write('%s\n' % tabname)
 
         # initialize the number of processes to run in parallel
         num_procs = 8
@@ -169,3 +169,4 @@ if __name__ == '__main__':
                 proc_alive = False
 
         print('Done!')
+    failtab.close()
