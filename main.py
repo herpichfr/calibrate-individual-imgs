@@ -11,6 +11,7 @@ import multiprocessing
 import time
 import os
 import matplotlib.pyplot as plt
+import glob
 
 def calibrate_indimgs(tab, imgs):
     """calibrate individual frames used for SPLUS MS coadding"""
@@ -26,7 +27,7 @@ def calibrate_indimgs(tab, imgs):
         print('tile is', tile)
 
         # get calibrated table of the tile of the image
-        mstabname = '/storage/Documents/pos-doc/t80s/asteroids/idr4_query_' + tile + '.csv'
+        mstabname = '/storage/splus/Catalogues/asteroids/idr4_query_' + tile + '.csv'
         print('reading MS tab', mstabname)
         mstab = pd.read_csv(mstabname)
         mstab.rename(columns={'u_auto': 'U', 'J0378_auto': 'F378', 'J0395_auto': 'F395',
@@ -56,7 +57,7 @@ def calibrate_indimgs(tab, imgs):
         print('calibrating image', img, 'for filter', filtername.item(), 'and field', tile)
         newt = Table(data=tab[1].data[image_mask], names=tab[1].data.columns.names)
         newt['mag'] += zp
-        imgtabname = '/home/herpich/Documents/pos-doc/t80s/asteroids/indImgsDiag/' + img + '_phot.csv'
+        imgtabname = '/storage/splus/Catalogues/asteroids/indImgsDiag/' + img + '_phot.csv'
         newt.to_pandas().to_csv(imgtabname, index=False)
 
         # save diagnostic things
@@ -102,7 +103,7 @@ def calibrate_indimgs(tab, imgs):
 
         plt.tight_layout()
 
-        dir2save = '/home/herpich/Documents/pos-doc/t80s/asteroids/indImgsDiag/'
+        dir2save = '/storage/splus/Catalogues/asteroids/indImgsDiag/'
         imgdiagname = dir2save + img + '_diag.png'
         plt.savefig(imgdiagname, format='png', dpi=120)
         plt.close()
@@ -114,7 +115,7 @@ def save_tabs4imgs(img, tile, zp, percs, num_obj):
     # data = np.array([img, tile, zp, percs[0], percs[1], num_obj])
     # cols = []
     df = pd.DataFrame({'ImgName': [img], 'tile': [tile], 'ZP': [zp], 'p16': [percs[0]], 'p84': percs[1], 'N': [num_obj]})
-    dir2save = '/home/herpich/Documents/pos-doc/t80s/asteroids/indImgsDiag/'
+    dir2save = '/storage/splus/Catalogues/asteroids/indImgsDiag/'
     if not os.path.isdir(dir2save):
         os.mkdir(dir2save)
     imgtabname = dir2save + img + '_zp.csv'
@@ -126,39 +127,45 @@ def save_tabs4imgs(img, tile, zp, percs, num_obj):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     # create directory that will keep the byproducts of calibration
-    dir2save = '/home/herpich/Documents/pos-doc/t80s/asteroids/indImgsDiag/'
+    dir2save = '/storage/splus/Catalogues/asteroids/indImgsDiag/'
     if not os.path.isdir(dir2save):
         os.mkdir(dir2save)
 
     # read table with the photometry of individual images
-    tabname = '/storage/Documents/pos-doc/t80s/asteroids/allsplusdetections-0-1080.csv.fits'
-    print('reading table', tabname)
-    tab = fits.open(tabname)
+    list_table = glob.glob('/storage/splus/Catalogues/asteroids/allsplusdetections-*.csv')
+    f = open('/storage/splus/Catalogues/asteroids/filed_tabs.txt', 'w')
+    for tabname in list_table:
+        print('reading table', tabname)
+        tab = fits.open(tabname)
 
-    # initialize the number of processes to run in parallel
-    num_procs = 4
-    images = np.unique(tab[1].data['exposure_id']).reshape((num_procs, int(1080/num_procs)))
-    print('calculating for a total of', images.size, 'images')
-    jobs = []
-    print('creating', num_procs, 'jobs...')
-    for imgs in images:
-        process = multiprocessing.Process(target=calibrate_indimgs, args=(tab, imgs))
-        jobs.append(process)
+        # check number of images in table
+        if np.unique(tab[1].data['exposure_id']).size != 1080:
+            f.write(tabname)
 
-    # start jobs
-    print('starting', num_procs, 'jobs!')
-    for j in jobs:
-        j.start()
+        # initialize the number of processes to run in parallel
+        num_procs = 8
+        images = np.unique(tab[1].data['exposure_id']).reshape((num_procs, int(1080/num_procs)))
+        print('calculating for a total of', images.size, 'images')
+        jobs = []
+        print('creating', num_procs, 'jobs...')
+        for imgs in images:
+            process = multiprocessing.Process(target=calibrate_indimgs, args=(tab, imgs))
+            jobs.append(process)
 
-    # check if any of the jobs initialized previously still alive
-    # save resulting table after all are finished
-    proc_alive = True
-    while proc_alive:
-        if any(proces.is_alive() for proces in jobs):
-            proc_alive = True
-            time.sleep(1)
-        else:
-            print('All jobs finished')
-            proc_alive = False
+        # start jobs
+        print('starting', num_procs, 'jobs!')
+        for j in jobs:
+            j.start()
 
-    print('Done!')
+        # check if any of the jobs initialized previously still alive
+        # save resulting table after all are finished
+        proc_alive = True
+        while proc_alive:
+            if any(proces.is_alive() for proces in jobs):
+                proc_alive = True
+                time.sleep(1)
+            else:
+                print('All jobs finished')
+                proc_alive = False
+
+        print('Done!')
