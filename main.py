@@ -21,8 +21,9 @@ def calibrate_indimgs(tab, imgs):
         # create path for output image
         dir2save = '/storage/splus/Catalogues/asteroids/indImgsDiag/'
         imgdiagname = dir2save + img + '_diag.png'
-        if os.path.isfile(imgdiagname):
-            print('Image', img, 'already done! Skipping...')
+        proc_images = pd.read_csv('/storage/splus/Catalogues/asteroids/failed_images.txt')
+        if os.path.isfile(imgdiagname) or (img in list(proc_images['Image'])):
+            print('Image', img, 'already processed! Skipping...')
         elif img == 'fakeimagename':
             print('Filler image name. Skipping...')
         else:
