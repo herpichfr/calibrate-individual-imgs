@@ -159,7 +159,7 @@ if __name__ == '__main__':
             print('reprojecting', num_images, 'images')
             increase_to = int(num_images / num_procs) + 1
             i = 0
-            while i < (increase_to - num_images):
+            while i < (increase_to * num_procs - num_images):
                 b.append('fakeimagename')
                 i += 1
             else:
