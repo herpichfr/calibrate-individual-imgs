@@ -152,18 +152,17 @@ if __name__ == '__main__':
         b = list(images)
         num_images = np.unique(tab[1].data['exposure_id']).size
         if num_images % num_procs > 0:
+            print('reprojecting', num_images, 'images')
             increase_to = int(num_images / num_procs) + 1
             i = 0
             while i < (increase_to - num_images):
                 b.append('fakeimagename')
                 i += 1
+            else:
+                print(num_images, 'already fulfill the conditions')
 
         images = np.array(b).reshape((num_procs, np.array(b).size / num_procs))
-        print('reprojecting', num_images)
-        for i in range(int(num_images / num_procs)):
-            images.append(np.unique(tab[1].data['exposure_id'])[
-                          i * int(num_images / num_procs): (i + 1) * int(num_images / num_procs)])
-        print('calculating for a total of', np.array(images).size, 'images')
+        print('calculating for a total of', images.size, 'images')
         jobs = []
         print('creating', num_procs, 'jobs...')
         for imgs in images:
