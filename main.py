@@ -141,9 +141,9 @@ if __name__ == '__main__':
         print('reading table', tabname)
         tab = fits.open(tabname)
 
-        # check number of images in table
-        if np.unique(tab[1].data['exposure_id']).size != 1080:
-            failtab.write('%s\n' % tabname)
+        # # check number of images in table
+        # if np.unique(tab[1].data['exposure_id']).size != 1080:
+        #     failtab.write('%s\n' % tabname)
 
         # initialize the number of processes to run in parallel
         num_procs = 8
@@ -177,4 +177,4 @@ if __name__ == '__main__':
                 proc_alive = False
 
         print('Done!')
-    failtab.close()
+    # failtab.close()
