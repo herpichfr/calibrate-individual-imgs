@@ -13,6 +13,7 @@ import os
 import matplotlib.pyplot as plt
 import glob
 
+
 def calibrate_indimgs(tab, imgs):
     """calibrate individual frames used for SPLUS MS coadding"""
     for img in imgs:
@@ -65,7 +66,7 @@ def calibrate_indimgs(tab, imgs):
         save_tabs4imgs(img, tile, zp, percs, num_obj)
 
         print('saving diagnostic figure', img + '_diag.png')
-        #plot_diagnostics(img, a, zp, percs, num_obj, c1, c2,
+        # plot_diagnostics(img, a, zp, percs, num_obj, c1, c2,
         #                 mstab[filtername.item()][sep_constraint & mask], sample=sep_constraint & mask)
         fig = plt.figure()
         ax1 = fig.add_subplot(221)
@@ -110,11 +111,13 @@ def calibrate_indimgs(tab, imgs):
 
     return
 
+
 def save_tabs4imgs(img, tile, zp, percs, num_obj):
     """save a table for each image containing the resulting parameters of calibration"""
     # data = np.array([img, tile, zp, percs[0], percs[1], num_obj])
     # cols = []
-    df = pd.DataFrame({'ImgName': [img], 'tile': [tile], 'ZP': [zp], 'p16': [percs[0]], 'p84': percs[1], 'N': [num_obj]})
+    df = pd.DataFrame(
+        {'ImgName': [img], 'tile': [tile], 'ZP': [zp], 'p16': [percs[0]], 'p84': percs[1], 'N': [num_obj]})
     dir2save = '/storage/splus/Catalogues/asteroids/indImgsDiag/'
     if not os.path.isdir(dir2save):
         os.mkdir(dir2save)
@@ -144,7 +147,12 @@ if __name__ == '__main__':
 
         # initialize the number of processes to run in parallel
         num_procs = 8
-        images = np.unique(tab[1].data['exposure_id']).reshape((num_procs, int(1080/num_procs)))
+        # images = np.unique(tab[1].data['exposure_id']).reshape((num_procs, int(1080/num_procs)))
+        num_images = np.unique(tab[1].data['exposure_id']).size
+        images = []
+        for i in range(int(num_images / num_procs)):
+            images.append(np.unique(tab[1].data['exposure_id'])[
+                          i * int(num_images / num_procs): (i + 1) * int(num_images / num_procs)])
         print('calculating for a total of', images.size, 'images')
         jobs = []
         print('creating', num_procs, 'jobs...')
