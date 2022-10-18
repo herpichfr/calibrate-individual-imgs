@@ -157,7 +157,7 @@ if __name__ == '__main__':
         for i in range(int(num_images / num_procs)):
             images.append(np.unique(tab[1].data['exposure_id'])[
                           i * int(num_images / num_procs): (i + 1) * int(num_images / num_procs)])
-        print('calculating for a total of', images.size, 'images')
+        print('calculating for a total of', np.array(images).size, 'images')
         jobs = []
         print('creating', num_procs, 'jobs...')
         for imgs in images:
