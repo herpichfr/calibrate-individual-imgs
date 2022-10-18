@@ -22,7 +22,9 @@ def calibrate_indimgs(tab, imgs):
         dir2save = '/storage/splus/Catalogues/asteroids/indImgsDiag/'
         imgdiagname = dir2save + img + '_diag.png'
         if os.path.isfile(imgdiagname):
-            print('Image', img, 'already done! Passing...')
+            print('Image', img, 'already done! Skipping...')
+        elif img == 'fakeimagename':
+            print('Filler image name. Skipping...')
         else:
             image_mask = tab[1].data['exposure_id'] == img
             filtername = np.unique(tab[1].data['filter'][image_mask])
@@ -146,9 +148,17 @@ if __name__ == '__main__':
 
         # initialize the number of processes to run in parallel
         num_procs = 8
-        # images = np.unique(tab[1].data['exposure_id']).reshape((num_procs, int(1080/num_procs)))
+        images = np.unique(tab[1].data['exposure_id'])
+        b = list(images)
         num_images = np.unique(tab[1].data['exposure_id']).size
-        images = []
+        if num_images % num_procs > 0:
+            increase_to = int(num_images / num_procs) + 1
+            i = 0
+            while i < (increase_to - num_images):
+                b.append('fakeimagename')
+                i += 1
+
+        images = np.array(b).reshape((num_procs, np.array(b).size / num_procs))
         print('reprojecting', num_images)
         for i in range(int(num_images / num_procs)):
             images.append(np.unique(tab[1].data['exposure_id'])[
