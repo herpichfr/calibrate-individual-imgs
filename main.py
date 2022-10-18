@@ -161,7 +161,7 @@ if __name__ == '__main__':
             else:
                 print(num_images, 'already fulfill the conditions')
 
-        images = np.array(b).reshape((num_procs, np.array(b).size / num_procs))
+        images = np.array(b).reshape((num_procs, int(np.array(b).size / num_procs)))
         print('calculating for a total of', images.size, 'images')
         jobs = []
         print('creating', num_procs, 'jobs...')
