@@ -144,7 +144,7 @@ def get_nonmatches(imgs, basedir):
             print('Filler image name. Skipping...')
         else:
             imgcat = pd.read_csv(basedir + 'indImgsDiag/' + img + '_phot.csv')
-            zpcat = pd.read_csv(basedir + 'indImgsDiag/' + img + '.csv')
+            zpcat = pd.read_csv(basedir + 'indImgsDiag/' + img + '_zp.csv')
             tile = zpcat['tile'][0]
             mstab = pd.read_csv(basedir + 'idr4_query/idr4_query_' + tile + '.csv')
 
@@ -229,7 +229,7 @@ if __name__ == '__main__':
 
         list_imgs = glob.glob(basedir + 'indImgsDiag/*.png')
         imgs = [i.split('/')[-1].split('_diag.png')[0] for i in list_imgs]
-        num_procs = 4
+        num_procs = 12
         num_images = len(imgs)
         print('processing', num_images, 'images...')
         if num_images % num_procs > 0:
