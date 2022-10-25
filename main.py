@@ -125,8 +125,6 @@ def calibrate_indimgs(tab, imgs):
 
 def save_tabs4imgs(img, tile, zp, percs, num_obj):
     """save a table for each image containing the resulting parameters of calibration"""
-    # data = np.array([img, tile, zp, percs[0], percs[1], num_obj])
-    # cols = []
     df = pd.DataFrame(
         {'ImgName': [img], 'tile': [tile], 'ZP': [zp], 'p16': [percs[0]], 'p84': percs[1], 'N': [num_obj]})
     dir2save = '/storage/splus/Catalogues/asteroids/indImgsDiag/'
@@ -137,41 +135,120 @@ def save_tabs4imgs(img, tile, zp, percs, num_obj):
 
     return
 
+def get_nonmatches(imgs, basedir):
+    """Search for the non-static objects in the individual catalogues"""
+    for img in imgs:
+        if os.path.isfile(basedir + 'indImgs_nomatch/' + img + '_calib_nomatch.csv'):
+            print('Image', img, 'already processed! Skipping...')
+        elif img == 'fakeimagename':
+            print('Filler image name. Skipping...')
+        else:
+            imgcat = pd.read_csv(basedir + 'indImgsDiag/' + img + '_phot.csv')
+            zpcat = pd.read_csv(basedir + 'indImgsDiag/' + img + '.csv')
+            tile = zpcat['tile'][0]
+            mstab = pd.read_csv(basedir + 'idr4_query/idr4_query_' + tile + '.csv')
+
+            c1 = SkyCoord(ra=imgcat['ra'], dec=imgcat['dec'], unit=(u.deg, u.deg))
+            c2 = SkyCoord(ra=mstab['RA'], dec=mstab['DEC'], unit=(u.deg, u.deg))
+
+            print('matching image', img, 'with tile', tile)
+            idx, d2d, d3d = c1.match_to_catalog_sky(c2)
+            max_sep = 1.0 * u.arcsec
+            sep_constraint = d2d < max_sep
+
+            dir2save = basedir + 'indImgs_nomatch/'
+            if not os.path.isdir(dir2save):
+                os.mkdir(dir2save)
+            tabname = dir2save + img + '_calib_nomatch.csv'
+            print('saving table', tabname)
+            imgcat[~sep_constraint].to_csv(tabname, index=False)
+
+    return
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    # create directory that will keep the byproducts of calibration
-    dir2save = '/storage/splus/Catalogues/asteroids/indImgsDiag/'
-    if not os.path.isdir(dir2save):
-        os.mkdir(dir2save)
+    calib = False
+    if calib:
+        # create directory that will keep the byproducts of calibration
+        dir2save = '/storage/splus/Catalogues/asteroids/indImgsDiag/'
+        if not os.path.isdir(dir2save):
+            os.mkdir(dir2save)
 
-    # read table with the photometry of individual images
-    list_table = glob.glob('/storage/splus/Catalogues/asteroids/allsplusdetections-*.csv.fits')
-    for tabname in list_table:
-        print('reading table', tabname)
-        tab = fits.open(tabname)
+        # read table with the photometry of individual images
+        list_table = glob.glob('/storage/splus/Catalogues/asteroids/allsplusdetections-*.csv.fits')
+        for tabname in list_table:
+            print('reading table', tabname)
+            tab = fits.open(tabname)
 
-        # initialize the number of processes to run in parallel
-        num_procs = 8
-        images = np.unique(tab[1].data['exposure_id'])
-        b = list(images)
-        num_images = np.unique(tab[1].data['exposure_id']).size
+            # initialize the number of processes to run in parallel
+            num_procs = 12
+            images = np.unique(tab[1].data['exposure_id'])
+            b = list(images)
+            num_images = np.unique(tab[1].data['exposure_id']).size
+            if num_images % num_procs > 0:
+                print('reprojecting', num_images, 'images')
+                increase_to = int(num_images / num_procs) + 1
+                i = 0
+                while i < (increase_to * num_procs - num_images):
+                    b.append('fakeimagename')
+                    i += 1
+                else:
+                    print(num_images, 'already fulfill the conditions')
+
+            images = np.array(b).reshape((num_procs, int(np.array(b).size / num_procs)))
+            print('calculating for a total of', images.size, 'images')
+            jobs = []
+            print('creating', num_procs, 'jobs...')
+            for imgs in images:
+                process = multiprocessing.Process(target=calibrate_indimgs, args=(tab, imgs))
+                jobs.append(process)
+
+            # start jobs
+            print('starting', num_procs, 'jobs!')
+            for j in jobs:
+                j.start()
+
+            # check if any of the jobs initialized previously still alive
+            # save resulting table after all are finished
+            proc_alive = True
+            while proc_alive:
+                if any(proces.is_alive() for proces in jobs):
+                    proc_alive = True
+                    time.sleep(1)
+                else:
+                    print('All jobs finished')
+                    proc_alive = False
+
+            print('Done!')
+    else:
+        print('skipping calibration...')
+
+    nomatch = True
+    if nomatch:
+        basedir = '/ssd/splus/asteroids/'
+
+        list_imgs = glob.glob(basedir + 'indImgsDiag/*.png')
+        imgs = [i.split('/')[-1].split('_diag.png')[0] for i in list_imgs]
+        num_procs = 4
+        num_images = len(imgs)
+        print('processing', num_images, 'images...')
         if num_images % num_procs > 0:
             print('reprojecting', num_images, 'images')
             increase_to = int(num_images / num_procs) + 1
             i = 0
             while i < (increase_to * num_procs - num_images):
-                b.append('fakeimagename')
+                imgs.append('fakeimagename')
                 i += 1
             else:
-                print(num_images, 'already fulfill the conditions')
+                print(len(imgs), 'already fulfill the conditions')
 
-        images = np.array(b).reshape((num_procs, int(np.array(b).size / num_procs)))
+        images = np.array(imgs).reshape((num_procs, int(np.array(imgs).size / num_procs)))
         print('calculating for a total of', images.size, 'images')
         jobs = []
+
         print('creating', num_procs, 'jobs...')
         for imgs in images:
-            process = multiprocessing.Process(target=calibrate_indimgs, args=(tab, imgs))
+            process = multiprocessing.Process(target=get_nonmatches, args=(imgs, basedir))
             jobs.append(process)
 
         # start jobs
