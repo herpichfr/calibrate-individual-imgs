@@ -165,6 +165,32 @@ def get_nonmatches(imgs, basedir):
 
     return
 
+def calculate_fluxes_from_mags(imgs, basedir):
+    """Calculate the flux from the calibrated magnitudes for individual catalogues"""
+    for img in imgs:
+        if os.path.isfile(basedir + 'indImgsDiag/' + img + '_calib_fluxes.csv'):
+            print('Image', img, 'already processed. Skipping...')
+        elif img == 'fakeimagename':
+            print('Filler image name. Skipping...')
+        else:
+            imgcat = pd.read_csv(basedir + 'indImgsDiag/' + img + '_phot.csv')
+            flux = 10 ** (-0.4 * imgcat['mag'])
+            ferr = np.log(10) * flux * imgcat['mag_sigma']
+
+            imgcat['flux'] = flux
+            imgcat['flux_err'] = ferr
+
+            dir2save = basedir + 'indImgsDiag/'
+            if not os.path.isdir(dir2save):
+                os.mkdir(dir2save)
+
+            tabname = dir2save + img + '_calib_fluxes.csv'
+            print('Saving table', tabname)
+            imgcat.to_csv(tabname, index=False)
+
+    return
+
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     calib = False
@@ -223,7 +249,7 @@ if __name__ == '__main__':
     else:
         print('skipping calibration...')
 
-    nomatch = True
+    nomatch = False
     if nomatch:
         basedir = '/ssd/splus/asteroids/'
 
@@ -249,6 +275,51 @@ if __name__ == '__main__':
         print('creating', num_procs, 'jobs...')
         for imgs in images:
             process = multiprocessing.Process(target=get_nonmatches, args=(imgs, basedir))
+            jobs.append(process)
+
+        # start jobs
+        print('starting', num_procs, 'jobs!')
+        for j in jobs:
+            j.start()
+
+        # check if any of the jobs initialized previously still alive
+        # save resulting table after all are finished
+        proc_alive = True
+        while proc_alive:
+            if any(proces.is_alive() for proces in jobs):
+                proc_alive = True
+                time.sleep(1)
+            else:
+                print('All jobs finished')
+                proc_alive = False
+
+        print('Done!')
+    calc_flux = True
+    if calc_flux:
+        basedir = '/ssd/splus/asteroids/'
+
+        list_imgs = glob.glob(basedir + 'indImgsDiag/*.png')
+        imgs = [i.split('/')[-1].split('_diag.png')[0] for i in list_imgs]
+        num_procs = 12
+        num_images = len(imgs)
+        print('processing', num_images, 'images...')
+        if num_images % num_procs > 0:
+            print('reprojecting', num_images, 'images')
+            increase_to = int(num_images / num_procs) + 1
+            i = 0
+            while i < (increase_to * num_procs - num_images):
+                imgs.append('fakeimagename')
+                i += 1
+            else:
+                print(len(imgs), 'already fulfill the conditions')
+
+        images = np.array(imgs).reshape((num_procs, int(np.array(imgs).size / num_procs)))
+        print('calculating for a total of', images.size, 'images')
+        jobs = []
+
+        print('creating', num_procs, 'jobs...')
+        for imgs in images:
+            process = multiprocessing.Process(target=calculate_fluxes_from_mags, args=(imgs, basedir))
             jobs.append(process)
 
         # start jobs
