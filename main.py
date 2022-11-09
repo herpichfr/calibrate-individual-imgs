@@ -296,7 +296,8 @@ if __name__ == '__main__':
         print('Done!')
     calc_flux = True
     if calc_flux:
-        basedir = '/ssd/splus/asteroids/'
+        basedir = '/storage/splus/Catalogues/asteroids/'
+        # dir2save = '/storage/splus/Catalogues/asteroids/indImgsDiag/'
 
         list_imgs = glob.glob(basedir + 'indImgsDiag/*.png')
         imgs = [i.split('/')[-1].split('_diag.png')[0] for i in list_imgs]
