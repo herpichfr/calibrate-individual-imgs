@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # herpich 2022-10-05.
 import os.path
 
@@ -12,6 +13,48 @@ import time
 import os
 import matplotlib.pyplot as plt
 import glob
+import argparse
+import logging
+import colorlog
+import sys
+
+
+def call_logger(loglevel=logging.INFO):
+    """set up logging with differet colors for different levels"""
+    # set up logging
+    logger = logging.getLogger(__name__)
+    logger.setLevel(loglevel)
+    # set up color logging
+    ch = logging.StreamHandler()
+    ch.setLevel(loglevel)
+    formatter = colorlog.ColoredFormatter(
+        '%(log_color)s%(levelname)-8s%(reset)s %(message)s',
+        log_colors={
+            'DEBUG': 'cyan',
+            'INFO': 'green',
+            'WARNING': 'yellow',
+            'ERROR': 'red',
+            'CRITICAL': 'red,bg_white',
+        })
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    return logger
+
+
+def call_parser():
+    parser = argparse.ArgumentParser(
+        description='Calibrate individual images for SPLUS MS coadding')
+    parser.add_argument('-f', '--field', type=str,
+                        default='all', help='field to be processed')
+    parser.add_argument('-p', '--processes', type=int,
+                        default=1, help='number of processes to be used')
+    parser.add_argument('-l', '--log', type=str,
+                        default='INFO', help='logging level')
+    # print help if no arguments are given
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit()
+    return parser.parse_args()
 
 
 def calibrate_indimgs(tab, imgs):
@@ -21,7 +64,8 @@ def calibrate_indimgs(tab, imgs):
         # create path for output image
         dir2save = '/storage/splus/Catalogues/asteroids/indImgsDiag/'
         imgdiagname = dir2save + img + '_diag.png'
-        proc_images = pd.read_csv('/storage/splus/Catalogues/asteroids/failed_images.txt')
+        proc_images = pd.read_csv(
+            '/storage/splus/Catalogues/asteroids/failed_images.txt')
         if os.path.isfile(imgdiagname) or (img in list(proc_images['Image'])):
             print('Image', img, 'already processed! Skipping...')
         elif img == 'fakeimagename':
@@ -32,15 +76,18 @@ def calibrate_indimgs(tab, imgs):
             print('filter is', filtername.item())
             if filtername.size > 1:
                 raise IOError('duplicated filter for image', img)
-            tiles = np.array([i[:-7].replace('_', '-') for i in tab[1].data['obs_id']])
+            tiles = np.array([i[:-7].replace('_', '-')
+                             for i in tab[1].data['obs_id']])
             tile = np.unique(tiles[image_mask]).item()
             print('tile is', tile)
 
             # get calibrated table of the tile of the image
             mstabname = '/storage/splus/Catalogues/asteroids/idr4_query_' + tile + '.csv'
             if not os.path.isfile(mstabname):
-                print('skipping calibration of', img, '. Failed to find tile', tile)
-                os.system('echo %s,%s >> /storage/splus/Catalogues/asteroids/failed_images.txt' % (img, tile))
+                print('skipping calibration of', img,
+                      '. Failed to find tile', tile)
+                os.system(
+                    'echo %s,%s >> /storage/splus/Catalogues/asteroids/failed_images.txt' % (img, tile))
             else:
                 print('reading MS tab', mstabname)
                 mstab = pd.read_csv(mstabname)
@@ -52,24 +99,31 @@ def calibrate_indimgs(tab, imgs):
 
                 # create the sky coordinates for both tables and match them
                 print('preparing coordinates for matching')
-                c1 = SkyCoord(ra=tab[1].data['ra'][image_mask], dec=tab[1].data['dec'][image_mask], unit=(u.deg, u.deg))
-                c2 = SkyCoord(ra=mstab['RA'], dec=mstab['DEC'], unit=(u.deg, u.deg))
+                c1 = SkyCoord(ra=tab[1].data['ra'][image_mask],
+                              dec=tab[1].data['dec'][image_mask], unit=(u.deg, u.deg))
+                c2 = SkyCoord(ra=mstab['RA'],
+                              dec=mstab['DEC'], unit=(u.deg, u.deg))
                 print('matching image', img, 'with table', mstabname)
                 idx, d2d, d3d = c2.match_to_catalog_sky(c1)
                 max_sep = 1.0 * u.arcsec
                 sep_constraint = d2d < max_sep
 
                 # finding ZP of image
-                mask = (mstab[filtername.item()] > 14) & (mstab[filtername.item()] < 18)
-                a = mstab[filtername.item()][sep_constraint & mask] - tab[1].data['mag'][image_mask][idx][sep_constraint & mask]
+                mask = (mstab[filtername.item()] > 14) & (
+                    mstab[filtername.item()] < 18)
+                a = mstab[filtername.item()][sep_constraint & mask] - \
+                    tab[1].data['mag'][image_mask][idx][sep_constraint & mask]
                 zp = np.median(a)
                 percs = np.percentile(a, [16, 84, 0.05, 99.95])
                 num_obj = a.size
-                print('ZP for image', img, 'filter', filtername.item(), 'field', tile, 'is', zp)
+                print('ZP for image', img, 'filter',
+                      filtername.item(), 'field', tile, 'is', zp)
 
                 # applying correction to individual catalogue
-                print('calibrating image', img, 'for filter', filtername.item(), 'and field', tile)
-                newt = Table(data=tab[1].data[image_mask], names=tab[1].data.columns.names)
+                print('calibrating image', img, 'for filter',
+                      filtername.item(), 'and field', tile)
+                newt = Table(data=tab[1].data[image_mask],
+                             names=tab[1].data.columns.names)
                 newt['mag'] += zp
                 imgtabname = '/storage/splus/Catalogues/asteroids/indImgsDiag/' + img + '_phot.csv'
                 newt.to_pandas().to_csv(imgtabname, index=False)
@@ -83,8 +137,10 @@ def calibrate_indimgs(tab, imgs):
                 #                 mstab[filtername.item()][sep_constraint & mask], sample=sep_constraint & mask)
                 fig = plt.figure()
                 ax1 = fig.add_subplot(221)
-                ax1.scatter(c1.ra, c1.dec, marker='o', c='c', s=20, label='ind')
-                ax1.scatter(c2.ra, c2.dec, marker='.', c='k', s=5, label='MS', alpha=0.5)
+                ax1.scatter(c1.ra, c1.dec, marker='o',
+                            c='c', s=20, label='ind')
+                ax1.scatter(c2.ra, c2.dec, marker='.', c='k',
+                            s=5, label='MS', alpha=0.5)
                 ax1.set_xlabel('RA')
                 ax1.set_ylabel('Dec')
                 ax1.set_title(img + ' f: ' + filtername.item(), fontsize=10)
@@ -100,15 +156,20 @@ def calibrate_indimgs(tab, imgs):
                 ax2.legend(loc='upper left', fontsize=8)
 
                 ax3 = fig.add_subplot(223)
-                y, x, _ = ax3.hist(a, bins=100, color='r', range=(percs[2], percs[3]))
+                y, x, _ = ax3.hist(a, bins=100, color='r',
+                                   range=(percs[2], percs[3]))
                 ax3.set_xlabel('mag_auto_MS - mag_auto_ind')
-                ax3.plot([zp, zp], [-0.01, max(y) + 1], '--', c='k', lw=1., label='median: %.2f' % zp)
-                ax3.plot([percs[0], percs[0]], [-0.01, max(y) + 1], '-.', c='k', lw=1.5, label='p16: %.2f' % percs[0])
-                ax3.plot([percs[1], percs[1]], [-0.01, max(y) + 1], '-.', c='k', lw=1.5, label='p84: %.2f' % percs[1])
+                ax3.plot([zp, zp], [-0.01, max(y) + 1], '--',
+                         c='k', lw=1., label='median: %.2f' % zp)
+                ax3.plot([percs[0], percs[0]], [-0.01, max(y) + 1],
+                         '-.', c='k', lw=1.5, label='p16: %.2f' % percs[0])
+                ax3.plot([percs[1], percs[1]], [-0.01, max(y) + 1],
+                         '-.', c='k', lw=1.5, label='p84: %.2f' % percs[1])
                 ax3.legend(loc='upper left', fontsize=8)
 
                 ax4 = fig.add_subplot(224)
-                ax4.scatter(mstab[filtername.item()][sep_constraint & mask], a, marker='.', c='b')
+                ax4.scatter(mstab[filtername.item()]
+                            [sep_constraint & mask], a, marker='.', c='b')
                 ax4.plot([min(mstab[filtername.item()][sep_constraint & mask]),
                           max(mstab[filtername.item()][sep_constraint & mask])],
                          [zp, zp], '-', c='k', lw=1.5)
@@ -135,6 +196,7 @@ def save_tabs4imgs(img, tile, zp, percs, num_obj):
 
     return
 
+
 def get_nonmatches(imgs, basedir):
     """Search for the non-static objects in the individual catalogues"""
     for img in imgs:
@@ -146,10 +208,13 @@ def get_nonmatches(imgs, basedir):
             imgcat = pd.read_csv(basedir + 'indImgsDiag/' + img + '_phot.csv')
             zpcat = pd.read_csv(basedir + 'indImgsDiag/' + img + '_zp.csv')
             tile = zpcat['tile'][0]
-            mstab = pd.read_csv(basedir + 'idr4_query/idr4_query_' + tile + '.csv')
+            mstab = pd.read_csv(
+                basedir + 'idr4_query/idr4_query_' + tile + '.csv')
 
-            c1 = SkyCoord(ra=imgcat['ra'], dec=imgcat['dec'], unit=(u.deg, u.deg))
-            c2 = SkyCoord(ra=mstab['RA'], dec=mstab['DEC'], unit=(u.deg, u.deg))
+            c1 = SkyCoord(ra=imgcat['ra'],
+                          dec=imgcat['dec'], unit=(u.deg, u.deg))
+            c2 = SkyCoord(ra=mstab['RA'],
+                          dec=mstab['DEC'], unit=(u.deg, u.deg))
 
             print('matching image', img, 'with tile', tile)
             idx, d2d, d3d = c1.match_to_catalog_sky(c2)
@@ -164,6 +229,7 @@ def get_nonmatches(imgs, basedir):
             imgcat[~sep_constraint].to_csv(tabname, index=False)
 
     return
+
 
 def calculate_fluxes_from_mags(imgs, basedir):
     """Calculate the flux from the calibrated magnitudes for individual catalogues"""
@@ -191,8 +257,9 @@ def calculate_fluxes_from_mags(imgs, basedir):
     return
 
 
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
+    args = call_parser()
+    logger = call_logger()
     calib = False
     if calib:
         # create directory that will keep the byproducts of calibration
@@ -201,7 +268,8 @@ if __name__ == '__main__':
             os.mkdir(dir2save)
 
         # read table with the photometry of individual images
-        list_table = glob.glob('/storage/splus/Catalogues/asteroids/allsplusdetections-*.csv.fits')
+        list_table = glob.glob(
+            '/storage/splus/Catalogues/asteroids/allsplusdetections-*.csv.fits')
         for tabname in list_table:
             print('reading table', tabname)
             tab = fits.open(tabname)
@@ -221,12 +289,14 @@ if __name__ == '__main__':
                 else:
                     print(num_images, 'already fulfill the conditions')
 
-            images = np.array(b).reshape((num_procs, int(np.array(b).size / num_procs)))
+            images = np.array(b).reshape(
+                (num_procs, int(np.array(b).size / num_procs)))
             print('calculating for a total of', images.size, 'images')
             jobs = []
             print('creating', num_procs, 'jobs...')
             for imgs in images:
-                process = multiprocessing.Process(target=calibrate_indimgs, args=(tab, imgs))
+                process = multiprocessing.Process(
+                    target=calibrate_indimgs, args=(tab, imgs))
                 jobs.append(process)
 
             # start jobs
@@ -268,13 +338,15 @@ if __name__ == '__main__':
             else:
                 print(len(imgs), 'already fulfill the conditions')
 
-        images = np.array(imgs).reshape((num_procs, int(np.array(imgs).size / num_procs)))
+        images = np.array(imgs).reshape(
+            (num_procs, int(np.array(imgs).size / num_procs)))
         print('calculating for a total of', images.size, 'images')
         jobs = []
 
         print('creating', num_procs, 'jobs...')
         for imgs in images:
-            process = multiprocessing.Process(target=get_nonmatches, args=(imgs, basedir))
+            process = multiprocessing.Process(
+                target=get_nonmatches, args=(imgs, basedir))
             jobs.append(process)
 
         # start jobs
@@ -314,13 +386,15 @@ if __name__ == '__main__':
             else:
                 print(len(imgs), 'already fulfill the conditions')
 
-        images = np.array(imgs).reshape((num_procs, int(np.array(imgs).size / num_procs)))
+        images = np.array(imgs).reshape(
+            (num_procs, int(np.array(imgs).size / num_procs)))
         print('calculating for a total of', images.size, 'images')
         jobs = []
 
         print('creating', num_procs, 'jobs...')
         for imgs in images:
-            process = multiprocessing.Process(target=calculate_fluxes_from_mags, args=(imgs, basedir))
+            process = multiprocessing.Process(
+                target=calculate_fluxes_from_mags, args=(imgs, basedir))
             jobs.append(process)
 
         # start jobs
