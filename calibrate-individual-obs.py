@@ -42,19 +42,33 @@ def call_logger(loglevel=logging.INFO):
 
 
 def call_parser():
+    def _set_outdir_as_indir(namespace):
+        if namespace.outdir is None:
+            namespace.outdir = namespace.indir
+
     parser = argparse.ArgumentParser(
         description='Calibrate individual images for SPLUS MS coadding')
     parser.add_argument('-f', '--field', type=str,
                         default='all', help='field to be processed')
+    parser.add_argument('-i', '--indir', type=str,
+                        default=os.getcwd(), help='input directory')
+    parser.add_argument('-o', '--outdir', type=str,
+                        default=None, help='output directory')
     parser.add_argument('-p', '--processes', type=int,
                         default=1, help='number of processes to be used')
     parser.add_argument('-l', '--log', type=str,
                         default='INFO', help='logging level')
+    # add a costum action to set outdir as indir if not given
+    parser.set_defaults(func=_set_outdir_as_indir)
     # print help if no arguments are given
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit()
-    return parser.parse_args()
+
+    args = parser.parse_args()
+    args.func(args)
+
+    return args
 
 
 def calibrate_indimgs(tab, imgs):
@@ -259,6 +273,7 @@ def calculate_fluxes_from_mags(imgs, basedir):
 
 if __name__ == '__main__':
     args = call_parser()
+    sys.exit(0)
     logger = call_logger()
     calib = False
     if calib:
