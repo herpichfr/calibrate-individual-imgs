@@ -53,14 +53,13 @@ def call_parser():
     parser.add_argument('-i', '--indir', type=str,
                         default=os.getcwd(), help='input directory')
     parser.add_argument('-o', '--outdir', type=str,
-                        default=None, help='output directory')
+                        default=None, help='Output directory. Default is indir')
     parser.add_argument('-p', '--processes', type=int,
                         default=1, help='number of processes to be used')
     parser.add_argument('-l', '--log', type=str,
                         default='INFO', help='logging level')
-    # add a costum action to set outdir as indir if not given
     parser.set_defaults(func=_set_outdir_as_indir)
-    # print help if no arguments are given
+
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit()
